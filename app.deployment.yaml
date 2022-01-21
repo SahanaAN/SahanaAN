@@ -1,0 +1,128 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __APP_NAME__
+  namespace: __NAMESPACE__
+spec:
+  replicas: __REPLICAS__
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      name: __APP_NAME__
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        name: __APP_NAME__
+      annotations:
+        vault.security.banzaicloud.io/vault-role: "__NAMESPACE__"
+        ad.datadoghq.com/__APP_NAME__.check_names: '["http_check"]'
+        ad.datadoghq.com/__APP_NAME__.init_configs: '[{}]'
+        ad.datadoghq.com/__APP_NAME__.instances: |
+          [
+            {
+              "name": "__APP_NAME__",
+              "url": "http://%%host%%:8080/actuator/health",
+              "timeout": 120
+            }
+          ]
+    spec:
+      hostname: __APP_NAME__
+      imagePullSecrets:
+        - name: maerskao
+      containers:
+        - name: __APP_NAME__
+          image: __DOCKER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: __MIN_LIMIT_CPU__
+              memory: __MIN_LIMIT_MEMORY__
+            limits:
+              cpu: __MAX_LIMIT_CPU__
+              memory: __MAX_LIMIT_MEMORY__
+          env:
+            - name: spring_profiles_active
+              value: __RELEASE__
+            - name: encryptor_algorithm_name
+              value: __ENC_ALGO_NAME__#encryptor.algorithm.name
+            - name: encryptor_key_value
+              value: __ENC_KEY_VALUE__#encryptor.key.value
+            - name: db_database
+              value: __VAULT_PROPS_PATH__#db.database
+            - name: db_driverClassName
+              value: __VAULT_PROPS_PATH__#db.driverClassName
+            - name: db_username
+              value: __VAULT_PROPS_PATH__#db.username
+            - name: db_password
+              value: __VAULT_PROPS_PATH__#db.password
+            - name: db_host
+              value: __VAULT_PROPS_PATH__#db.host
+            - name: db_port
+              value: __VAULT_PROPS_PATH__#db.port
+            - name: db_server
+              value: __VAULT_PROPS_PATH__#db.server
+            - name: sap_oauth_clientId
+              value: __VAULT_PROPS_PATH__#sap.oauth.clientId
+            - name: sap_oauth_clientSecret
+              value: __VAULT_PROPS_PATH__#sap.oauth.clientSecret
+            - name: ohp_oauth_clientId
+              value: __VAULT_PROPS_PATH__#ohp.oauth.clientId
+            - name: ohp_oauth_clientSecret
+              value: __VAULT_PROPS_PATH__#ohp.oauth.clientSecret
+            - name: camunda_oauth_scope
+              value: __VAULT_PROPS_PATH__#camunda.oauth.scope
+            - name: sdfc_oauth_clientId
+              value: __VAULT_PROPS_PATH__#sfdc.oauth.clientId
+            - name: sdfc_oauth_clientSecret
+              value: __VAULT_PROPS_PATH__#sfdc.oauth.clientSecret
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DD_PROPAGATION_STYLE_INJECT
+              value: Datadog,B3
+            - name: DD_PROPAGATION_STYLE_EXTRACT
+              value: Datadog,B3
+            - name: DD_SERVICE
+              value: __APP_NAME__
+            - name: DD_ENV
+              value: __REMOTE_ENV__
+            - name: DD_VERSION
+              value: __VERSION__
+            - name: DD_LOGS_INJECTION
+              value: "true"
+            - name: DD_PROFILING_ENABLED
+              value: "false"
+            - name: DD_APM_IGNORE_RESOURCES
+              value: "(GET|POST) /actuator/health, GET /actuator/prometheus"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            failureThreshold: 3
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 90
+            failureThreshold: 3
+            periodSeconds: 30
